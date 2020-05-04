@@ -162,16 +162,22 @@ logMeetingInfos() {
         local listenerCount=$(getXmlMettingInfos "${i}" "listenerCount")
         local voiceParticipantCount=$(getXmlMettingInfos "${i}" "voiceParticipantCount")
         local videoCount=$(getXmlMettingInfos "${i}" "videoCount")
-        logmsg="MeetingName=${roomName} MeetingID=${meetingID} CreateDate=${createDate} \
+        local logmsg="MeetingName=${roomName} MeetingID=${meetingID} CreateDate=${createDate} \
 RoomMaxUsers=${maxUsers} Participants=${participantCount} ListenerCount=${listenerCount} \
 VoiceCount=${voiceParticipantCount} VideoCount=${videoCount}"
 
         # Get the attendee "fullName" infos in the specific meeting room.
         [ -n "${PRM_MEMBERS}" ] && {
             getXmlAttendeeInfos "${i}" "fullName"
-            logmsg="${logmsg} Members=${attendees[@]}"
+            logmsg="${logmsg} Members="
+
+            for (( k=0; k<${#attendees[@]}; k++))
+            do
+                logmsg="${logmsg}${attendees[k]// /};"
+            done
         }
-        echo "${logmsg}"
+
+        meetingLog+=( "${logmsg}")
     done
 }
 
@@ -213,19 +219,62 @@ setVars
         [ -n "${PRM_LOG}" ] && {
             # Log-file not specified.
             [ -z "${PRM_FILE}" ] && {
-                echo -e  $(isodate) ${IAM}: "$(logMeetingInfos)"
+                #echo -e  $(isodate) ${IAM}: "$(logMeetingInfos)"
+                logMeetingInfos
+                for (( i=0; i<${#meetingLog[@]}; i++))
+                do
+                    echo -e  $(isodate) ${IAM}: ${meetingLog[$i]}
+                    echo 
+                done
             }
 
             # Log-file is given.
             [ -n "${PRM_FILE}" ] && {
-                # Only save new line in log-file with new informations.
-                lastlog=$( tail -n 1 ${PRM_FILE} | cut -d' ' -f 3- )
-                [ "${lastlog}" != "$(logMeetingInfos)" ] && {
-                    echo -e  $(isodate) ${IAM}: "$(logMeetingInfos)" >> ${PRM_FILE}
+                [ -s "${PRM_FILE}" ] && {
+                    lastLog=$( tail -n ${#meetingName[@]} ${PRM_FILE} | cut -d' ' -f 3- )
                 }
+                logMeetingInfos
+                echo -e "${meetingLog[@]}" > meetingLog.tmp
+                echo -e $lastLog > lastLog.tmp
+
+                if [[ ! -z $(diff meetingLog.tmp lastLog.tmp) ]] || [ ! -s "${PRM_FILE}" ]
+                then
+                    for (( i=0; i<${#meetingName[@]}; i++))
+                    do
+                        echo -e $(isodate) ${IAM}: ${meetingLog[$i]} >> ${PRM_FILE}
+                    done
+                    echo Daten sind nicht identisch neues log.
+                else
+                    echo Daten sind identisch, kein log!
+                fi
+
+                rm -rf meetingLog.tmp lastLog.tmp
+
+                ####################
+                #FIXME -> Dies soll auf dauer den Mist mit den tmp-Files abloesen!
+                ####################
+                #if [[ "${meetingLog[@]}" != $lastLog ]] || [ ! -s "${PRM_FILE}" ]
+                #then
+                #    for (( i=0; i<${#meetingName[@]}; i++))
+                #    do
+                #        echo -e $(isodate) ${IAM}: ${meetingLog[$i]} >> ${PRM_FILE}
+                #    done
+                #    echo dateien sind identisch
+                #fi
+
+
+                # Einfache Variante alles konkatiniert.
+                ## Get last log from log-file.
+                #lastlog=$( tail -n 1 ${PRM_FILE} | cut -d' ' -f 3- )
+                ## Generate new meeting logs.
+                #logMeetingInfos
+                ## Only save new line in log-file with new informations.
+                #[[ "${lastlog}" != "${meetingLog[@]}" ]] && {
+                #    echo -e  $(isodate) ${IAM}: "${meetingLog[@]}" >> ${PRM_FILE}
+                #}
             }
         }
-    else
+    else # No meeting is active.
         # Watch mode is started.
         [ -n "${PRM_WATCH}" ] && {
             echo "currently no meetings" 
