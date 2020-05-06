@@ -339,8 +339,6 @@ setVars
                 else
                     totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal}"
                 fi
-                echo -e $(isodate) ${IAM}: "${totalLogMsg}"
-
                 ## Only save new line in log-file".total" with new informations about total counts (not stats or iface).
                 if [[ "${lastLogTotal}" != "$(echo -e "${totalLogMsg}" | cut -d' ' -f 1-3)" ]] || [ ! -s "${PRM_FILE}.total" ]
                 then
