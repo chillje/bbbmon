@@ -80,14 +80,14 @@ depCheck() {
 
 # This function generates the performance usage output.
 cpuMemoryUsage() {
-    echo -e "CPU Idle:\\t" $(mpstat 1 1 | awk 'END{print}' | cut -d' ' -f 42-)" (avg.)"
-    echo -e "Memory Usage:\\t" $(free -m | awk 'NR==2{printf "Memory Usage: %s/%sMB (%.2f%%)\n",$3,$2,$3*100/$2 }' | cut -d' ' -f 3-)
-    echo -e "Disk Usage:\\t" $(df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n",$3,$2,$5}' | cut -d' ' -f 3-)
+    cpuIdle=$(mpstat 1 1 | awk 'END{print}' | cut -d' ' -f 42-)
+    mem=$(free -m | awk 'NR==2{printf "Memory Usage: %s/%sMB (%.2f%%)\n",$3,$2,$3*100/$2 }' | cut -d' ' -f 3-)
+    disk=$(df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n",$3,$2,$5}' | cut -d' ' -f 3-)
     # If an interface is given, we see the input and output traffic
     [ -n "${PRM_IFACE}" ] && {
         IFS=$'\n' read -r -d '' -a ifstats < <( ifstat -i ens32 -b -n 1 1 | awk 'END{print}' | tr -s ' ' | sed -e s/^\ //g -e s/\ /\\n/g )
-        echo -e "${PRM_IFACE} Kbps in:\\t" ${ifstats[0]}
-        echo -e "${PRM_IFACE} Kbps out:\\t" ${ifstats[1]}
+        kbpsIn=${ifstats[0]}
+        kbpsOut=${ifstats[1]}
     }
 }
 
@@ -123,6 +123,24 @@ getXmlAttendeeInfos() {
 }
 
 
+# This function defines relevant meeting informations as variables.
+getTotalMettingInfos() {
+    for (( i=1; i<${#meetingName[@]}+1; i++))
+    do
+        participantCount=$(getXmlMettingInfos "${i}" "participantCount")
+        listenerCount=$(getXmlMettingInfos "${i}" "listenerCount")
+        voiceParticipantCount=$(getXmlMettingInfos "${i}" "voiceParticipantCount")
+        videoCount=$(getXmlMettingInfos "${i}" "videoCount")
+
+        ((participantTotal+=$participantCount))
+        ((listenerTotal+=$listenerCount))
+        ((voiceTotal+=$voiceParticipantCount))
+        ((videoTotal+=$videoCount))
+    done
+
+}
+
+
 # This function prints the neccesary informations of all running meetings (--watch option).
 printMeetingInfos() {
     for (( i=1; i<${#meetingName[@]}+1; i++))
@@ -133,7 +151,7 @@ printMeetingInfos() {
         echo -e "Room max Participants:\\t"  $(getXmlMettingInfos "${i}" "maxUsers")
         echo -e "Participants total:\\t"  $(getXmlMettingInfos "${i}" "participantCount")
         echo -e "Participants listener:\\t"  $(getXmlMettingInfos "${i}" "listenerCount")
-        echo -e "Participants only voice:"  $(getXmlMettingInfos "${i}" "voiceParticipantCount")
+        echo -e "Participants voice:\\t"  $(getXmlMettingInfos "${i}" "voiceParticipantCount")
         echo -e "Participants with video:"  $(getXmlMettingInfos "${i}" "videoCount")
 
         # Get the attendee "fullName" infos in the specific meeting room.
@@ -199,10 +217,16 @@ setVars
     [ -n "${PRM_WATCH}" ] && [ -n "${PRM_STATS}" ] && {
         echo -e "\e[0;31mPerformance data:\e[0m"
         cpuMemoryUsage
+        echo -e "CPU Idle:\\t ${cpuIdle} (avg.)"
+        echo -e "Memory Usage:\\t ${mem}"
+        echo -e "Disk Usage:\\t ${disk}"
+        # If an interface is given, we see the input and output traffic
+        [ -n "${PRM_IFACE}" ] && {
+            echo -e "${PRM_IFACE} In:\\t ${kbpsIn} Kbit/s"
+            echo -e "${PRM_IFACE} Out:\\t ${kbpsOut} Kbit/s"
+        }
         echo "--------------------------------------------"
-        echo
         echo -e "\e[0;31mBigBlueButton meeting informations for \"$url\":\e[0m" 
-        echo
     }
 
     # Proof for running meetings.
@@ -210,7 +234,8 @@ setVars
     then
         # Watch mode is started.
         [ -n "${PRM_WATCH}" ] && {
-            echo -e "\e[1;31m$meetings\e[0m running meeting/s on \"$url\"."
+            getTotalMettingInfos
+            echo -e "Meetings: \e[1;31m${meetings}\e[0m, Participants Total: \e[1;31m${participantTotal}\e[0m, VideoCount Total: \e[1;31m${videoTotal}\e[0m"
             echo
             printMeetingInfos
         }
@@ -219,47 +244,66 @@ setVars
         [ -n "${PRM_LOG}" ] && {
             # Log-file not specified.
             [ -z "${PRM_FILE}" ] && {
-                #echo -e  $(isodate) ${IAM}: "$(logMeetingInfos)"
+                # Show log-msg as "echo" with all meetings seperated per lines.
                 logMeetingInfos
                 for (( i=0; i<${#meetingLog[@]}; i++))
                 do
                     echo -e  $(isodate) ${IAM}: ${meetingLog[$i]}
-                    echo 
                 done
+
+                # Show log-msg as "echo" with total, total and cpu or total, cpu and if-infos.
+                getTotalMettingInfos
+                if [ -n "${PRM_STATS}" ] && [ -z "${PRM_IFACE}" ]
+                then
+                    cpuMemoryUsage
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}%" 
+                elif [ -n "${PRM_STATS}" ] && [ -n "${PRM_IFACE}" ]
+                then
+                    cpuMemoryUsage
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps"
+                else
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal}"
+                fi
+                echo -e $(isodate) ${IAM}: "${totalLogMsg}"
             }
 
             # Log-file is given.
             [ -n "${PRM_FILE}" ] && {
+                # Get the last informations from the given ${PRM_FILE}. It loads the same lines
+                # (from behind) as meetings are currently running.
                 [ -s "${PRM_FILE}" ] && {
                     lastLog=$( tail -n ${#meetingName[@]} ${PRM_FILE} | cut -d' ' -f 3- )
                 }
                 logMeetingInfos
+                # Save the currently running meetings and the loaded meetings from ${PRM_FILE} as
+                # separated files.
                 echo -e "${meetingLog[@]}" > meetingLog.tmp
                 echo -e $lastLog > lastLog.tmp
 
+                ## Only save new line in log-file with new informations if the two files are differ.
                 if [[ ! -z $(diff meetingLog.tmp lastLog.tmp) ]] || [ ! -s "${PRM_FILE}" ]
                 then
                     for (( i=0; i<${#meetingName[@]}; i++))
                     do
                         echo -e $(isodate) ${IAM}: ${meetingLog[$i]} >> ${PRM_FILE}
                     done
-                    echo Daten sind nicht identisch neues log.
-                else
-                    echo Daten sind identisch, kein log!
                 fi
 
+                # Remove the ugly tmp-files for comparison...
                 rm -rf meetingLog.tmp lastLog.tmp
 
                 ####################
                 #FIXME -> Dies soll auf dauer den Mist mit den tmp-Files abloesen!
                 ####################
-                #if [[ "${meetingLog[@]}" != $lastLog ]] || [ ! -s "${PRM_FILE}" ]
+                #if [[ "${meetingLog[*]}" != "${lastLog}" ]] || [ ! -s "${PRM_FILE}" ]
                 #then
                 #    for (( i=0; i<${#meetingName[@]}; i++))
                 #    do
                 #        echo -e $(isodate) ${IAM}: ${meetingLog[$i]} >> ${PRM_FILE}
                 #    done
-                #    echo dateien sind identisch
+                #    echo Daten sind nicht identisch neues log.
+                #else
+                #    echo Daten sind identisch, kein log!
                 #fi
 
 
@@ -269,9 +313,39 @@ setVars
                 ## Generate new meeting logs.
                 #logMeetingInfos
                 ## Only save new line in log-file with new informations.
-                #[[ "${lastlog}" != "${meetingLog[@]}" ]] && {
+                #[[ "${lastLog}" != "${meetingLog[@]}" ]] && {
                 #    echo -e  $(isodate) ${IAM}: "${meetingLog[@]}" >> ${PRM_FILE}
                 #}
+
+                ##############################################################################
+                # Log "total" informations to another logfile called "${PRM_FILE}.total".
+                ##############################################################################
+
+                # Log "total" informations to another logfile.
+                [ -s "${PRM_FILE}.total" ] && {
+                    # We want to compare the first 3 informations only. Not the iface or cpu.
+                    lastLogTotal=$( tail -n 1 ${PRM_FILE}.total | cut -d' ' -f 3-5 )
+                }
+                # Define totalLogMsg with total, total and cpu or total, cpu and if-infos.
+                getTotalMettingInfos
+                if [ -n "${PRM_STATS}" ] && [ -z "${PRM_IFACE}" ]
+                then
+                    cpuMemoryUsage
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}%" 
+                elif [ -n "${PRM_STATS}" ] && [ -n "${PRM_IFACE}" ]
+                then
+                    cpuMemoryUsage
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps"
+                else
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal}"
+                fi
+                echo -e $(isodate) ${IAM}: "${totalLogMsg}"
+
+                ## Only save new line in log-file".total" with new informations about total counts (not stats or iface).
+                if [[ "${lastLogTotal}" != "$(echo -e "${totalLogMsg}" | cut -d' ' -f 1-3)" ]] || [ ! -s "${PRM_FILE}.total" ]
+                then
+                    echo -e $(isodate) ${IAM}: "${totalLogMsg}" >> ${PRM_FILE}.total
+                fi
             }
         }
     else # No meeting is active.
