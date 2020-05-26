@@ -260,7 +260,7 @@ setVars
                 elif [ -n "${PRM_STATS}" ] && [ -n "${PRM_IFACE}" ]
                 then
                     cpuMemoryUsage
-                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps"
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps ${PRM_IFACE}-Total=$( echo "scale=2;${kbpsIn}+${kbpsOut}" | bc )Kbps"
                 else
                     totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal}"
                 fi
@@ -335,7 +335,7 @@ setVars
                 elif [ -n "${PRM_STATS}" ] && [ -n "${PRM_IFACE}" ]
                 then
                     cpuMemoryUsage
-                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps"
+                    totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal} cpuIdle=${cpuIdle}% ${PRM_IFACE}-In=${kbpsIn}Kbps ${PRM_IFACE}-Out=${kbpsOut}Kbps ${PRM_IFACE}-Total=$( echo "scale=2;${kbpsIn}+${kbpsOut}" | bc )Kbps"
                 else
                     totalLogMsg="meetingsTotal=${meetings} participantsTotal=${participantTotal} videoTotal=${videoTotal}"
                 fi
@@ -364,7 +364,8 @@ setVars
                 # Only save new line in log-file with new informations.
                 lastlog=$( tail -n 1 ${PRM_FILE} | cut -d' ' -f 3- )
                 [ "${lastlog}" != "currently no meetings" ] && {
-                    echo -e  $(isodate) ${IAM}: "currently no meetings" >> ${PRM_FILE}
+                    echo -e $(isodate) ${IAM}: "currently no meetings" >> ${PRM_FILE}
+                    echo -e $(isodate) ${IAM}: "currently no meetings" >> ${PRM_FILE}.total
                 }
             }
         }
