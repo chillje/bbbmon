@@ -224,6 +224,7 @@ setVars
         [ -n "${PRM_IFACE}" ] && {
             echo -e "${PRM_IFACE} In:\\t ${kbpsIn} Kbit/s"
             echo -e "${PRM_IFACE} Out:\\t ${kbpsOut} Kbit/s"
+            echo -e "${PRM_IFACE}-Total:\\t $( echo "scale=2;${kbpsIn}+${kbpsOut}" | bc ) Kbit/s"
         }
         echo "--------------------------------------------"
         echo -e "\e[0;31mBigBlueButton meeting informations for \"$url\":\e[0m" 
