@@ -93,7 +93,9 @@ Now you have a log entry every 30 seconds.
 ```vim /etc/logrotate.d/bbbmon```
 
 ```
-/var/log/bbb/bbb-meetings.*
+/var/log/bbb/bbb-meetings.err
+/var/log/bbb/bbb-meetings.log
+/var/log/bbb/bbb-meetings.log.total
 {
     rotate 30
     daily
