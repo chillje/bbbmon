@@ -85,7 +85,7 @@ cpuMemoryUsage() {
     disk=$(df -h | awk '$NF=="/"{printf "Disk Usage: %d/%dGB (%s)\n",$3,$2,$5}' | cut -d' ' -f 3-)
     # If an interface is given, we see the input and output traffic
     [ -n "${PRM_IFACE}" ] && {
-        IFS=$'\n' read -r -d '' -a ifstats < <( ifstat -i ens32 -b -n 1 1 | awk 'END{print}' | tr -s ' ' | sed -e s/^\ //g -e s/\ /\\n/g )
+        IFS=$'\n' read -r -d '' -a ifstats < <( ifstat -i "${PRM_IFACE}" -b -n 1 1 | awk 'END{print}' | tr -s ' ' | sed -e s/^\ //g -e s/\ /\\n/g )
         kbpsIn=${ifstats[0]}
         kbpsOut=${ifstats[1]}
     }
